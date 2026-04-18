@@ -1,0 +1,121 @@
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# --- DYNAMIC SCREEN SETUP ---
+info = pygame.display.Info()
+WIDTH, HEIGHT = info.current_w, info.current_h
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+pygame.display.set_caption("PHM - Advanced Color Theory Build")
+
+# ADVANCED CINEMATIC PALETTE
+# Mixing Analogous (Teal/Lime) with Split-Complementary (Amber/Violet)
+COLOR_VARIANTS = [
+    (0, 255, 40),   # Core Petrova Green
+    (0, 255, 120),  # Bright Teal
+    (180, 255, 0),  # Electric Lime
+    (60, 0, 110),   # Deep Violet (Shadow depth)
+    (255, 170, 0),  # Golden Amber (Energy/Reaction)
+    (10, 80, 30)    # Dark Emerald (Volume)
+]
+VOID_BLACK = (2, 4, 2)
+
+# --- PARTICLE SETUP ---
+particle_count = 2500 
+particles = []
+
+for _ in range(particle_count):
+    particles.append({
+        'x': random.uniform(-WIDTH, WIDTH), 
+        'y': random.uniform(-HEIGHT, HEIGHT),
+        'z': random.uniform(1, 1000), 
+        'angle': random.uniform(0, math.pi * 2),
+        'speed': random.uniform(0.1, 2.0),
+        'bubble_r': random.randint(1, 170), # Your large radius setting
+        'color': random.choice(COLOR_VARIANTS)
+    })
+
+trail_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+is_ir_filter = False
+running = True
+clock = pygame.time.Clock()
+
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT: running = False
+        if event.type == pygame.VIDEORESIZE:
+            WIDTH, HEIGHT = event.w, event.h
+            screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+            trail_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                is_ir_filter = not is_ir_filter
+                for p in particles:
+                    p['z'] = random.uniform(1, 1000)
+                trail_surf.fill((0, 0, 0, 0)) 
+            if event.key == pygame.K_f:
+                pygame.display.toggle_fullscreen()
+
+    screen.fill(VOID_BLACK if not is_ir_filter else (15, 0, 0))
+    
+    fade_val = 12 if not is_ir_filter else 90 
+    fade_overlay = pygame.Surface((WIDTH, HEIGHT))
+    fade_overlay.set_alpha(fade_val); fade_overlay.fill((0, 0, 0))
+    trail_surf.blit(fade_overlay, (0, 0))
+
+    if not is_ir_filter:
+        # --- VISIBLE MODE ---
+        temp_layer = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        t = pygame.time.get_ticks() * 0.001
+        
+        for p in particles:
+            # Your Water Physics
+            water_sway = math.sin(t + p['x'] * 0.01) * 0.2
+            p['x'] += math.cos(p['angle'] + water_sway) * p['speed'] * 1.5
+            p['y'] += math.sin(p['angle'] + water_sway) * p['speed'] * 1.5
+            
+            # Wrap logic
+            if p['x'] > WIDTH: p['x'] = -WIDTH
+            if p['x'] < -WIDTH: p['x'] = WIDTH
+            if p['y'] > HEIGHT: p['y'] = -HEIGHT
+            if p['y'] < -HEIGHT: p['y'] = HEIGHT
+
+            r = p['bubble_r']
+            # Surface sized for your specific radius needs
+            s = pygame.Surface((r*2, r*2), pygame.SRCALPHA)
+            # Drawing with the cinematic color + alpha 30
+            pygame.draw.circle(s, p['color'] + (30,), (r, r), r)
+            
+            draw_x = p['x'] + WIDTH // 2
+            draw_y = p['y'] + HEIGHT // 2
+            temp_layer.blit(s, (int(draw_x-r), int(draw_y-r)), special_flags=pygame.BLEND_RGBA_MAX)
+        
+        trail_surf.blit(temp_layer, (0, 0))
+
+    else:
+        # --- RED IR SWARM ---
+        for p in particles:
+            p['z'] -= 5 
+            if p['z'] <= 1:
+                p['z'] = 1000
+                p['x'] = random.uniform(-WIDTH, WIDTH)
+                p['y'] = random.uniform(-HEIGHT, HEIGHT)
+            
+            factor = 400 / p['z']
+            x = int(p['x'] * factor + WIDTH // 2)
+            y = int(p['y'] * factor + HEIGHT // 2)
+            
+            if 0 <= x < WIDTH and 0 <= y < HEIGHT:
+                bright = int(255 * (1 - p['z']/1000))
+                dot_size = int(2 if p['z'] > 500 else 4)
+      
+                pygame.draw.circle(trail_surf, (bright, 15, 0), (x, y), dot_size)
+
+    screen.blit(trail_surf, (0, 0))
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
